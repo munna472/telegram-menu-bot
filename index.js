@@ -19,7 +19,7 @@ const app = express();
 app.use(express.json());
 
 // টেলিগ্রাম বট ইনস্ট্যান্স (ওয়েবহুকের জন্য পোলিং ফলস রাখা হয়েছে)
-const bot = new TelegramBot(config.botToken, { polling: false });
+const bot = new TelegramBot(config.botToken, { polling: true });
 
 // রেন্ডার এনভায়রনমেন্টে ওয়েবহুক সেটআপ
 if (config.renderUrl) {
