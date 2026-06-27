@@ -1,7 +1,6 @@
 require("dotenv").config();
 const express = require("express");
 const TelegramBot = require("node-telegram-bot-api");
-const config = require("./config/config");
 const { mainKeyboard } = require("./keyboards/main");
 
 // হ্যান্ডলারসমূহ ইমপোর্ট করা (আপনার ফোল্ডার স্ট্রাকচার অনুযায়ী)
@@ -15,31 +14,29 @@ const packsHandler = require("./handlers/packs");
 const dueHandler = require("./handlers/due");
 const myinfoHandler = require("./handlers/myinfo");
 
+// রেন্ডার এনভায়রনমেন্ট বা .env ফাইল থেকে সরাসরি টোকেন ও পোর্ট রিড করা
+const BOT_TOKEN = process.env.BOT_TOKEN || "8908339374:AAGDZJtaRLQpF5lYgRkK2TKNtGztCEfU8AI";
+const FINAL_PORT = process.env.PORT || 10000;
+
+if (!BOT_TOKEN) {
+    console.error("❌ CRITICAL ERROR: Telegram Bot Token is missing in environment variables!");
+    process.exit(1);
+}
+
+// পোলিং অন করে বটের ইনস্ট্যান্স তৈরি (ওয়েবহুক ছাড়া)
+const bot = new TelegramBot(BOT_TOKEN, { polling: true });
+console.log("🚀 Bot instance successfully initialized with Polling: true");
+
+// রেন্ডারের পোর্ট স্ক্যান ফিক্স করার জন্য একটি মিনিমাম এক্সপ্রেস সার্ভার
 const app = express();
 app.use(express.json());
 
-// টেলিগ্রাম বট ইনস্ট্যান্স (ওয়েবহুকের জন্য পোলিং ফলস রাখা হয়েছে)
-const bot = new TelegramBot(config.botToken, { polling: true });
-
-// রেন্ডার এনভায়রনমেন্টে ওয়েবহুক সেটআপ
-if (config.renderUrl) {
-    const webhookUrl = `${config.renderUrl}/bot${config.botToken}`;
-    bot.setWebHook(webhookUrl)
-        .then(() => console.log(`🚀 Webhook successfully set to: ${webhookUrl}`))
-        .catch((err) => console.error("❌ Error setting webhook:", err.message));
-} else {
-    console.log("⚠️ RENDER_EXTERNAL_URL not found. Webhook not configured.");
-}
-
-// টেলিগ্রাম থেকে আসা সব আপডেট এক্সপ্রেসের এই রুটে রিসিভ হবে
-app.post(`/bot${config.botToken}`, (req, res) => {
-    bot.processUpdate(req.body);
-    res.sendStatus(200);
+app.get("/", (req, res) => {
+    res.send("Telegram Menu Bot is running beautifully via Polling...");
 });
 
-// হোম রুট (সার্ভার চেক করার জন্য)
-app.get("/", (req, res) => {
-    res.send("Telegram Menu Bot Running via Webhook...");
+app.listen(FINAL_PORT, "0.0.0.0", () => {
+    console.log(`✅ Dummy server listening on port ${FINAL_PORT} to keep Render happy.`);
 });
 
 // ==========================================
@@ -108,10 +105,13 @@ bot.on("message", async (msg) => {
             break;
 
         case "💳 Add Balance":
-            // Add Balance সরাসরি Anumber গ্রুপে পাঠায় (অন্য ফাইল বা সরাসরি হ্যান্ডেল করা)
-            const { sendToGroup } = require("./utils/sender");
-            await sendToGroup(bot, "Anumber");
-            await bot.sendMessage(chatId, "✅ Add Balance command sent.");
+            try {
+                const { sendToGroup } = require("./utils/sender");
+                await sendToGroup(bot, "Anumber");
+                await bot.sendMessage(chatId, "✅ Add Balance command sent.");
+            } catch (err) {
+                console.error("Add Balance Error:", err.message);
+            }
             break;
 
         case "✅ Verify":
@@ -147,9 +147,4 @@ bot.on("message", async (msg) => {
             break;
     }
 });
-
-// সার্ভার লিসেন করা
-app.listen(config.port, () => {
-    console.log(`Server Started on port ${config.port}`);
-});
-        
+            
