@@ -1,14 +1,7 @@
-const { sendToGroup } = require("../utils/sender");
+const { sendToGroup } = require('../utils/sender');
 
-module.exports = async (bot, msg) => {
+function handleProfile(bot, msg) {
+    sendToGroup(bot, "Aprofile");
+}
 
-    const chatId = msg.chat.id;
-
-    await sendToGroup(bot, "Aprofile");
-
-    await bot.sendMessage(
-        chatId,
-        "✅ Profile command sent successfully."
-    );
-
-};
+module.exports = handleProfile;
