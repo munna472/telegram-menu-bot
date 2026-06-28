@@ -1,7 +1,7 @@
 {
   "name": "telegram-menu-bot",
   "version": "1.0.0",
-  "description": "Telegram Menu Bot",
+  "description": "Production-ready Telegram Menu Bot for raw command forwarding",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -10,5 +10,10 @@
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "node-telegram-bot-api": "^0.66.0"
-  }
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "author": "",
+  "license": "ISC"
 }
