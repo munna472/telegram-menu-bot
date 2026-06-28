@@ -3,7 +3,7 @@ const { cancelKeyboard, mainKeyboard } = require('../keyboards/main');
 
 function initVerify(bot, chatId, verifyUsers) {
     verifyUsers[chatId] = { step: 'AWAITING_TRX' };
-    bot.sendMessage(chatId, "Please type your TRX ID:", cancelKeyboard);
+    bot.sendMessage(chatId, "💳 Send Money করার পর ট্রানজেকশন আইডি (TrxID) দিন বা Averify [trxID] লিখুন:", cancelKeyboard);
 }
 
 function processVerify(bot, chatId, text, verifyUsers) {
@@ -12,12 +12,12 @@ function processVerify(bot, chatId, text, verifyUsers) {
         return bot.sendMessage(chatId, "❌ Cancelled", mainKeyboard);
     }
     
-    let trx = text;
-    if (text.startsWith("Averify ")) {
-        trx = text.replace("Averify ", "").trim();
+    let finalCommand = text;
+    if (!text.startsWith("Averify ")) {
+        finalCommand = `Averify ${text}`;
     }
     
-    sendToGroup(bot, `Averify ${trx}`);
+    sendToGroup(bot, finalCommand);
     delete verifyUsers[chatId];
     bot.sendMessage(chatId, "✅ Done", mainKeyboard);
 }
