@@ -1,14 +1,7 @@
-const { sendToGroup } = require("../utils/sender");
+const { sendToGroup } = require('../utils/sender');
 
-module.exports = async (bot, msg) => {
+function handlePacks(bot, msg) {
+    sendToGroup(bot, "Apacks");
+}
 
-    const chatId = msg.chat.id;
-
-    await sendToGroup(bot, "Apacks");
-
-    await bot.sendMessage(
-        chatId,
-        "✅ Packs command sent successfully."
-    );
-
-};
+module.exports = handlePacks;
