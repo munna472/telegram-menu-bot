@@ -1,16 +1,42 @@
 const mainKeyboard = {
     reply_markup: {
         keyboard: [
-            [{ text: "👤 Profile" }, { text: "💰 Balance" }],
-            [{ text: "💳 Add Balance" }, { text: "✅ Verify" }],
-            [{ text: "💎 UC Purchase" }, { text: "⚡ Auto TopUp" }],
-            [{ text: "📦 Packs" }, { text: "📊 Rate" }],
-            [{ text: "🔄 Due Clear" }, { text: "ℹ️ My Info" }]
+            [{ text: "👤 Profile" }, { text: "💰 Balance" }, { text: "📉 Due Check" }],
+            [{ text: "💳 Add Balance" }, { text: "✅ Verify TrxID" }],
+            [{ text: "⚡ Auto TopUp" }, { text: "🎮 UC Purchase" }, { text: "🎯 Garena Shell" }],
+            [{ text: "📦 Packs Rate" }, { text: "📊 General Rate" }, { text: "💎 Adiamond" }],
+            [{ text: "ℹ️ My Info" }, { text: "🔄 Due Clear" }, { text: "📝 Admin Text" }]
         ],
         resize_keyboard: true,
         one_time_keyboard: false
     }
 };
 
-// এখানে ছোট হাতের অক্ষরে এবং অবজেক্ট আকারে এক্সপোর্ট করা হলো
-module.exports = { mainKeyboard };
+const quantityKeyboard = {
+    reply_markup: {
+        keyboard: [
+            [{ text: "1" }, { text: "2" }, { text: "3" }],
+            [{ text: "4" }, { text: "5" }],
+            [{ text: "⏭️ Skip (1x)" }],
+            [{ text: "❌ Cancel Order" }]
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: true
+    }
+};
+
+const cancelKeyboard = {
+    reply_markup: {
+        keyboard: [
+            [{ text: "❌ Cancel Order" }]
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: true
+    }
+};
+
+module.exports = {
+    mainKeyboard,
+    quantityKeyboard,
+    cancelKeyboard
+};
