@@ -18,32 +18,33 @@ const { initUC, processUC } = require('./handlers/uc');
 const { initShell, processShell } = require('./handlers/shell');
 const { initTopUp, processTopUpText, handleTopUpCallback } = require('./handlers/topup');
 
-// এক্সপ্রেস সার্ভার ইনিশিয়ালিজেশন
+// এক্সপ্রেস সার্ভার (Render এর জন্য লাইভ রাখবে)
 const app = express();
 app.get('/', (req, res) => res.send('Bot Status: Active'));
 app.listen(config.PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${config.PORT}`);
 });
 
-// টেলিগ্রাম বট অবজেক্ট
 const bot = new TelegramBot(config.BOT_TOKEN, { polling: true });
-console.log("Telegram Bot initialization active (Polling)...");
+console.log("🚀 Telegram Forwarder Bot Active with Deep Analysis Logic...");
 
-// ইন-মেমোরি সেশন অবজেক্টসমূহ
+// ইন-মেমোরি সেশন অবজেক্টস
 const topupUsers = {};
 const verifyUsers = {};
 const adminUsers = {};
 const shellUsers = {};
 const ucUsers = {};
 
-// মেইন মেসেজ রিসিভার
+// প্রধান মেসেজ প্রসেসর
 bot.on('message', (msg) => {
     const chatId = msg.chat.id;
     if (!msg.text) return;
 
     const text = msg.text.trim();
 
-    // ১. একটিভ কনভারসেশন স্টেট চেক
+    // ------------------------------------------
+    // ১. চলমান সেশন ভেরিফিকেশন (Active Conversations)
+    // ------------------------------------------
     if (topupUsers[chatId]) {
         return processTopUpText(bot, chatId, text, topupUsers);
     }
@@ -60,7 +61,9 @@ bot.on('message', (msg) => {
         return processUC(bot, chatId, text, ucUsers);
     }
 
-    // ২. মেইন মেনু বাটন ক্লিক ম্যাপিং
+    // ------------------------------------------
+    // ২. মেইন রিপ্লাই কিবোর্ড বাটন ম্যাপিং (হুবহু র' কমান্ড গ্রুপে যাবে)
+    // ------------------------------------------
     if (text === "👤 Profile") return handleProfile(bot, msg);
     if (text === "💰 Balance") return handleBalance(bot, msg);
     if (text === "📉 Due Check") return handleDue(bot, msg);
@@ -71,7 +74,9 @@ bot.on('message', (msg) => {
     if (text === "ℹ️ My Info") return handleMyInfo(bot, msg);
     if (text === "🔄 Due Clear") return sendToGroup(bot, "Aresetbaki");
 
-    // ৩. স্পেশাল ডায়নামিক ইনপুট ট্রিগার বাটন
+    // ------------------------------------------
+    // ৩. কাস্টম ইনপুট এবং টপ-আপ ট্রিগার বাটন
+    // ------------------------------------------
     if (text === "✅ Verify TrxID") {
         return initVerify(bot, chatId, verifyUsers);
     }
@@ -88,7 +93,9 @@ bot.on('message', (msg) => {
         return initTopUp(bot, chatId, topupUsers);
     }
 
-    // ৪. গ্লোবাল র' (Raw) কমান্ড চেক
+    // ------------------------------------------
+    // ৪. গ্লোবাল র' কমান্ড সরাসরি ফরোয়ার্ড সাপোর্ট
+    // ------------------------------------------
     const rawCommands = [
         "Aprofile", "Abalance", "Adue", "Amyinfo", "Anumber", 
         "Arate", "Apacks", "Adiamond", "Aresetbaki", "Alist"
@@ -97,32 +104,38 @@ bot.on('message', (msg) => {
         return sendToGroup(bot, text);
     }
 
-    // টেক্সট ভিত্তিক র' কমান্ড পার্সিং (Prefix matching)
+    // কমান্ড যদি আংশিক বা প্রিফিক্সড ম্যাচ হয় (যেমন: Atp 2232962333 lite 2)
     if (text.startsWith("Averify ") || text.startsWith("Auc ") || text.startsWith("Ashell ") || text.startsWith("Atp ")) {
         return sendToGroup(bot, text);
     }
 
-    // ৫. স্ট্যান্ডঅ্যালোন প্লেয়ার UID চেক (৮-১২ ডিজিট সংখ্যা)
+    // ------------------------------------------
+    // ৫. স্পেশাল ইউজার কমান্ডস (UID Check, Calculator, Alist)
+    // ------------------------------------------
+    
+    // সরাসরি শুধু UID পাঠালে (৮-১২ ডিজিট সংখ্যা)
     if (/^\d{8,12}$/.test(text)) {
         return sendToGroup(bot, text);
     }
 
-    // ৬. ক্যালকুলেটর রুলস ভেরিফিকেশন
+    // সরাসরি ক্যালকুলেটর ইনপুট দিলে (যেমন: 100+100, 100*6 ইত্যাদি)
     if (/^[0-9\+\-\*\/\(\)\.\s]+$/.test(text) && /[\+\-\*\/]/.test(text)) {
         return sendToGroup(bot, text);
     }
 
-    // ৭. স্টার্ট কমান্ড হ্যান্ডলিং
+    // ------------------------------------------
+    // ৬. স্টার্ট কমান্ড ও ফলব্যাক লজিক
+    // ------------------------------------------
     if (text === "/start") {
-        return bot.sendMessage(chatId, "Welcome! Main Keyboard Active.", mainKeyboard);
+        return bot.sendMessage(chatId, "✨ Welcome! Keyboard Active. Clean & Simple to use.", mainKeyboard);
     }
 
-    // ৮. ফলব্যাক লজিক (যা কিছুর সাথে মিলবে না, হুবহু গ্রুপে যাবে)
+    // ফলব্যাক: কোনো নিয়মের সাথে না মিললে ইউজার যা টাইপ করবে হুবহু র' ফরমেটে গ্রুপে ফরোয়ার্ড হবে
     sendToGroup(bot, text);
 });
 
-// ইনলাইন বাটন বা কলব্যাক কুয়েরি রিসিভার
+// ইনলাইন বাটন বা কলব্যাক কুয়েরি লিসেনার
 bot.on('callback_query', (query) => {
     handleTopUpCallback(bot, query, topupUsers);
 });
-                          
+        
