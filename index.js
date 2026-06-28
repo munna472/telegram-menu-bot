@@ -8,24 +8,27 @@ const GROUP_ID = process.env.GROUP_ID || "-1004413191032";
 const FINAL_PORT = process.env.PORT || 10000;
 
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
-console.log("🚀 Custom Raw Command Bot Initialized...");
+console.log("🚀 Raw Command Forwarder Bot Active...");
 
 // Render পোর্ট ফিক্স এক্সপ্রেস সার্ভার
 const app = express();
 app.get("/", (req, res) => res.send("Bot is Active..."));
 app.listen(FINAL_PORT, "0.0.0.0");
 
-// ইউজারের সেশন ট্র্যাক অবজেক্ট
+// ইউজারের সেশন ট্র্যাক অবজেক্ট (শুধুমাত্র Auto TopUp এবং Admin Text এর জন্য)
 const userSessions = {};
 
-// মেইন কিবোর্ড বাটনসমূহ
+// ==========================================
+// ALL BUTTON MARKUPS (সবগুলো বাটন একসাথে)
+// ==========================================
 const mainKeyboard = {
     reply_markup: {
         keyboard: [
             [{ text: "👤 Profile" }, { text: "💰 Balance" }, { text: "📉 Due Check" }],
             [{ text: "💳 Add Balance" }, { text: "✅ Verify TrxID" }],
             [{ text: "⚡ Auto TopUp" }, { text: "🎮 UC Purchase" }, { text: "🎯 Garena Shell" }],
-            [{ text: "📦 Packs Rate" }, { text: "📊 General Rate" }, { text: "ℹ️ My Info" }]
+            [{ text: "📦 Packs Rate" }, { text: "📊 General Rate" }, { text: "ℹ️ My Info" }],
+            [{ text: "🔍 ID Check" }, { text: "🔄 Due Clear" }, { text: "📝 Admin Text" }]
         ],
         resize_keyboard: true,
         one_time_keyboard: false
@@ -49,17 +52,30 @@ bot.on("message", async (msg) => {
     if (!msg.text) return;
 
     const text = msg.text.trim();
+    const parts = text.split(/\s+/);
+    const command = parts[0];
 
     // গ্লোবাল ক্যানসেল চেক
     if (text === "❌ Cancel Order") {
         delete userSessions[chatId];
-        return bot.sendMessage(chatId, "❌ আপনার অর্ডারটি বাতিল করা হয়েছে।", mainKeyboard);
+        return bot.sendMessage(chatId, "❌ বাতিল করা হয়েছে।", mainKeyboard);
     }
 
     // ------------------------------------------
-    // স্টেপ-বাই-স্টেপ অর্ডার প্রসেসিং লজিক (স্টেট চেক)
+    // কাস্টম এডমিন টেক্সট / যেকোনো টেক্সট ফরোয়ার্ড করার লজিক
     // ------------------------------------------
-    if (userSessions[chatId]) {
+    if (userSessions[chatId] && userSessions[chatId].step === "AWAITING_ADMIN_TEXT") {
+        // ইউজার যা লিখবে হুবহু সেই প্লেইন টেক্সট বা কমান্ড গ্রুপে যাবে
+        bot.sendMessage(GROUP_ID, text);
+        bot.sendMessage(chatId, "✅ আপনার কমান্ড/মেসেজটি গ্রুপে পাঠানো হয়েছে।", mainKeyboard);
+        delete userSessions[chatId];
+        return;
+    }
+
+    // ------------------------------------------
+    // স্টেপ-বাই-স্টেপ অটো টপ-আপ লজিক
+    // ------------------------------------------
+    if (userSessions[chatId] && userSessions[chatId].step) {
         const session = userSessions[chatId];
 
         // ধাপ ১: UID গ্রহণ করা
@@ -70,7 +86,6 @@ bot.on("message", async (msg) => {
             session.uid = text;
             session.step = "AWAITING_PACKAGE";
 
-            // ইউজারকে প্যাকেজ ক্যাটাগরি সিলেক্ট করতে ইনলাইন বাটন দেখানো
             return bot.sendMessage(chatId, "🎁 এখন নিচের ক্যাটাগরি থেকে আপনার প্যাকেজটি সিলেক্ট করুন:", {
                 reply_markup: {
                     inline_keyboard: [
@@ -92,51 +107,116 @@ bot.on("message", async (msg) => {
                 if (isNaN(qty) || qty < 1 || qty > 5) {
                     return bot.sendMessage(chatId, "⚠️ দয়া করে ১ থেকে ৫ এর মধ্যে সংখ্যা লিখুন বা Skip করুন:");
                 }
-                finalQty = ` ${qty}`; // একের বেশি হলে স্পেস দিয়ে সংখ্যা বসবে
+                finalQty = ` ${qty}`;
             }
 
-            // হুবহু আপনার চাওয়া ফরমেটে ক্লিন টেক্সট জেনারেট (Atp uid package qty)
             const finalCommand = `Atp ${session.uid} ${session.package}${finalQty}`.trim();
-            
-            // ইউজারকে সাকসেস মেসেজ দেওয়া
-            bot.sendMessage(chatId, `✅ *আপনার অর্ডারটি সফলভাবে গ্রুপে পাঠানো হয়েছে!*\n\n📝 \`${finalCommand}\``, { parse_mode: "Markdown", ...mainKeyboard });
-
-            // গ্রুপে একদম প্লেইন টেক্সট আকারে পাঠানো (কোনো ডেকোরেশন বা এক্সট্রা লেখা ছাড়া)
             bot.sendMessage(GROUP_ID, finalCommand);
+            bot.sendMessage(chatId, `✅ সফলভাবে পাঠানো হয়েছে:\n\`${finalCommand}\``, { parse_mode: "Markdown", ...mainKeyboard });
 
-            // সেশন ক্লিয়ার
             delete userSessions[chatId];
             return;
         }
     }
 
     // ------------------------------------------
-    // মেইন বাটন ক্লিক ও জেনারেল কমান্ডস
+    // বাটন ক্লিকের বিপরীতে হুবহু আপনার দেওয়া প্লেইন কমান্ড গ্রুপে ফরোয়ার্ড
     // ------------------------------------------
-    if (text === "⚡ Auto TopUp") {
+    
+    // ১. প্রোফাইল ও অ্যাকাউন্ট ক্যাটাগরি
+    if (text === "👤 Profile" || command === "Aprofile") {
+        return bot.sendMessage(GROUP_ID, "Aprofile");
+    }
+    if (text === "💰 Balance" || command === "Abalance") {
+        return bot.sendMessage(GROUP_ID, "Abalance");
+    }
+    if (text === "📉 Due Check" || command === "Adue") {
+        return bot.sendMessage(GROUP_ID, "Adue");
+    }
+    if (text === "ℹ️ My Info" || command === "Amyinfo") {
+        return bot.sendMessage(GROUP_ID, "Amyinfo");
+    }
+
+    // ২. ব্যালেন্স অ্যাড ও ভেরিফাই ক্যাটাগরি
+    if (text === "💳 Add Balance" || command === "Anumber") {
+        return bot.sendMessage(GROUP_ID, "Anumber");
+    }
+    if (text === "✅ Verify TrxID" || command === "Averify") {
+        const trxId = parts[1] || "";
+        return bot.sendMessage(GROUP_ID, `Averify ${trxId}`.trim());
+    }
+
+    // ৩. রেট চেক
+    if (text === "📊 General Rate" || command === "Arate") {
+        return bot.sendMessage(GROUP_ID, "Arate");
+    }
+    if (text === "📦 Packs Rate" || command === "Apacks") {
+        return bot.sendMessage(GROUP_ID, "Apacks");
+    }
+    if (command === "Adiamond") {
+        return bot.sendMessage(GROUP_ID, "Adiamond");
+    }
+    if (command === "Alist") {
+        return bot.sendMessage(GROUP_ID, "Alist");
+    }
+
+    // ৪. UC এবং Garena Shell পারচেজ
+    if (text === "🎮 UC Purchase" || command === "Auc") {
+        const uc = parts[1] || "";
+        const qty = parts[2] || "";
+        return bot.sendMessage(GROUP_ID, `Auc ${uc} ${qty}`.trim());
+    }
+    if (text === "🎯 Garena Shell" || command === "Ashell") {
+        const amount = parts[1] || "";
+        const qty = parts[2] || "";
+        return bot.sendMessage(GROUP_ID, `Ashell ${amount} ${qty}`.trim());
+    }
+
+    // ৫. ডিউ ক্লিয়ার ও আইডি চেক
+    if (text === "🔄 Due Clear" || command === "Aresetbaki") {
+        return bot.sendMessage(GROUP_ID, "Aresetbaki");
+    }
+    if (text === "🔍 ID Check") {
+        return bot.sendMessage(chatId, "🔍 আইডি ডিটেলস দেখতে সরাসরি শুধু প্লেয়ার UID (যেমন: `2232962333`) টাইপ করে সেন্ড করুন।", { parse_mode: "Markdown" });
+    }
+
+    // ৬. অটো টপ-আপ প্রসেস স্টার্ট
+    if (text === "⚡ Auto TopUp" || command === "Atp") {
+        // যদি ইউজার সরাসরি ফুল কমান্ড লেখে যেমন: Atp 2232962333 lite
+        if (parts[1]) {
+            return bot.sendMessage(GROUP_ID, text);
+        }
+        // বাটন ক্লিক করলে স্টেপ বাই স্টেপ ইনপুট নেবে
         userSessions[chatId] = { step: "AWAITING_UID", uid: "", package: "" };
         return bot.sendMessage(chatId, "🎮 আপনার *Auto Top-Up* প্রসেসটি শুরু হয়েছে।\n\n🎯 প্রথমে আপনার **Player UID** টি লিখুন:", { parse_mode: "Markdown", ...cancelKeyboard });
     }
 
-    // বাকি সাধারণ বাটন ও কমান্ডের রেসপন্স
-    if (text === "/start") {
-        return bot.sendMessage(chatId, `👋 *Welcome ${msg.from.first_name}!*\n\n🤖 অটো টপ-আপ করতে নিচের *⚡ Auto TopUp* বাটনে ক্লিক করুন।`, { parse_mode: "Markdown", ...mainKeyboard });
+    // ৭. নতুন কাস্টম এডমিন টেক্সট বাটন লজিক
+    if (text === "📝 Admin Text") {
+        userSessions[chatId] = { step: "AWAITING_ADMIN_TEXT" };
+        return bot.sendMessage(chatId, "✍️ আপনি গ্রুপে যে কমান্ড বা কাস্টম মেসেজটি পাঠাতে চান, তা এখন এখানে লিখুন:", cancelKeyboard);
     }
-    if (text === "👤 Profile") {
-        return bot.sendMessage(chatId, `👤 *Profile:* ${msg.from.first_name}\nID: \`${msg.from.id}\``, { parse_mode: "Markdown" });
+
+    // ৮. সরাসরি ক্যালকুলেটর ইনপুট দিলে
+    if (/^[0-9\+\-\*\/\(\)\.\s]+$/.test(text) && /[\+\-\*\/]/.test(text)) {
+        try {
+            const result = new Function(`return ${text}`)();
+            return bot.sendMessage(GROUP_ID, `Calculator: ${text} = ${result}`);
+        } catch (e) {}
     }
-    if (text === "💰 Balance") {
-        return bot.sendMessage(chatId, `💰 *Balance:* 0.00 TK`, { parse_mode: "Markdown" });
+
+    // ৯. ইউজার সরাসরি শুধু UID (৮-১২ ডিজিট সংখ্যা) টাইপ করলে তা গ্রুপে যাবে
+    if (/^\d{8,12}$/.test(text)) {
+        return bot.sendMessage(GROUP_ID, text);
     }
-    if (text === "📉 Due Check") {
-        return bot.sendMessage(chatId, `📉 *Due:* 0.00 TK`, { parse_mode: "Markdown" });
+
+    // ১০. স্টার্ট কমান্ড
+    if (command === "/start") {
+        return bot.sendMessage(chatId, `👋 *Welcome!*\n\nনিচের বাটনগুলো ব্যবহার করে সরাসরি গ্রুপে নিখুঁত র' (Raw) কমান্ড পাঠান।`, { parse_mode: "Markdown", ...mainKeyboard });
     }
-    if (text === "ℹ️ My Info") {
-        return bot.sendMessage(chatId, `🆔 *Telegram ID:* \`${msg.from.id}\``, { parse_mode: "Markdown" });
-    }
-    if (text === "💳 Add Balance") {
-        return bot.sendMessage(chatId, `💳 *Payment Numbers:* Bkash/Nagad: 01XXXXXXXXX`, { parse_mode: "Markdown" });
-    }
+
+    // ইউজার অন্য যেকোনো র্যান্ডম কমান্ড বা মেসেজ লিখলে সরাসরি গ্রুপে ফরোয়ার্ড হবে
+    return bot.sendMessage(GROUP_ID, text);
 });
 
 // ==========================================
@@ -150,12 +230,10 @@ bot.on("callback_query", async (query) => {
         return bot.answerCallbackQuery(query.id, { text: "সেশনটি শেষ হয়ে গেছে।" });
     }
 
-    // ১. Unipin ডায়মন্ড সাব-মেনু
+    // Unipin সাব-মেনু
     if (data === "cat_unipin") {
         return bot.editMessageText("💎 *Unipin Diamond* প্যাকেজটি বেছে নিন:", {
-            chat_id: chatId,
-            message_id: query.message.message_id,
-            parse_mode: "Markdown",
+            chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
             reply_markup: {
                 inline_keyboard: [
                     [{ text: "25 Dia (20)", callback_data: "pkg_20" }, { text: "25 Dia (25)", callback_data: "pkg_25" }],
@@ -171,12 +249,10 @@ bot.on("callback_query", async (query) => {
         });
     }
 
-    // ২. Memberships সাব-মেনু
+    // Memberships সাব-মেনু
     if (data === "cat_member") {
         return bot.editMessageText("🪪 *Memberships* প্যাকেজ বেছে নিন:", {
-            chat_id: chatId,
-            message_id: query.message.message_id,
-            parse_mode: "Markdown",
+            chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
             reply_markup: {
                 inline_keyboard: [
                     [{ text: "Weekly Membership (161)", callback_data: "pkg_161" }],
@@ -187,12 +263,10 @@ bot.on("callback_query", async (query) => {
         });
     }
 
-    // ৩. Shell Packs সাব-মেনু
+    // Shell Packs সাব-মেনু
     if (data === "cat_shell") {
         return bot.editMessageText("🐚 *Shell TopUp Packs* বেছে নিন:", {
-            chat_id: chatId,
-            message_id: query.message.message_id,
-            parse_mode: "Markdown",
+            chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
             reply_markup: {
                 inline_keyboard: [
                     [{ text: "Weekly Lite (lite)", callback_data: "pkg_lite" }],
@@ -205,12 +279,10 @@ bot.on("callback_query", async (query) => {
         });
     }
 
-    // ৪. Level Up Pass সাব-মেনু
+    // Level Up Pass সাব-মেনু
     if (data === "cat_lvl") {
         return bot.editMessageText("🎮 *Level Up Pass* বেছে নিন:", {
-            chat_id: chatId,
-            message_id: query.message.message_id,
-            parse_mode: "Markdown",
+            chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
             reply_markup: {
                 inline_keyboard: [
                     [{ text: "Lvl 6", callback_data: "pkg_lvl6" }, { text: "Lvl 10", callback_data: "pkg_lvl10" }],
@@ -223,12 +295,10 @@ bot.on("callback_query", async (query) => {
         });
     }
 
-    // ৫. Indo Top Up সাব-মেনু
+    // Indo Top Up সাব-মেনু
     if (data === "cat_indo") {
         return bot.editMessageText("🇮🇩 *Indo Top Up* বেছে নিন:", {
-            chat_id: chatId,
-            message_id: query.message.message_id,
-            parse_mode: "Markdown",
+            chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
             reply_markup: {
                 inline_keyboard: [
                     [{ text: "Indo 5 Dia", callback_data: "pkg_indo5" }, { text: "Indo 50 Dia", callback_data: "pkg_indo50" }],
@@ -244,11 +314,10 @@ bot.on("callback_query", async (query) => {
         });
     }
 
-    // ব্যাক বাটন ক্লিক হ্যান্ডলার
+    // ব্যাক বাটন ক্লিক
     if (data === "back_to_cat") {
         return bot.editMessageText("🎁 এখন নিচের ক্যাটাগরি থেকে আপনার প্যাকেজটি সিলেক্ট করুন:", {
-            chat_id: chatId,
-            message_id: query.message.message_id,
+            chat_id: chatId, message_id: query.message.message_id,
             reply_markup: {
                 inline_keyboard: [
                     [{ text: "💎 Unipin Diamond", callback_data: "cat_unipin" }],
@@ -261,9 +330,7 @@ bot.on("callback_query", async (query) => {
         });
     }
 
-    // ------------------------------------------
     // প্যাকেজ সিলেক্ট হয়ে গেলে কোয়ান্টিটি চাওয়া
-    // ------------------------------------------
     if (data.startsWith("pkg_")) {
         const selectedPackage = data.replace("pkg_", "");
         userSessions[chatId].package = selectedPackage;
@@ -285,4 +352,4 @@ bot.on("callback_query", async (query) => {
         });
     }
 });
-            
+              
