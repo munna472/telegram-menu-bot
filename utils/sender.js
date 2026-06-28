@@ -1,22 +1,10 @@
-const { GROUP_ID } = require("../config/config");
+const config = require('../config/config');
 
-async function sendToGroup(bot, command) {
-    try {
-        await bot.sendMessage(GROUP_ID, command);
-
-        return {
-            success: true
-        };
-
-    } catch (err) {
-
-        console.log(err);
-
-        return {
-            success: false
-        };
-
-    }
+function sendToGroup(bot, text) {
+    return bot.sendMessage(config.GROUP_ID, text)
+        .catch(err => {
+            console.error("Error forwarding to group:", err.message);
+        });
 }
 
 module.exports = {
