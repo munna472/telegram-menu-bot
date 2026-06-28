@@ -1,14 +1,7 @@
-const { sendToGroup } = require("../utils/sender");
+const { sendToGroup } = require('../utils/sender');
 
-module.exports = async (bot, msg) => {
+function handleRate(bot, msg) {
+    sendToGroup(bot, "Arate");
+}
 
-    const chatId = msg.chat.id;
-
-    await sendToGroup(bot, "Arate");
-
-    await bot.sendMessage(
-        chatId,
-        "✅ Rate command sent successfully."
-    );
-
-};
+module.exports = handleRate;
