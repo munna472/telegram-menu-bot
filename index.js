@@ -8,14 +8,14 @@ const GROUP_ID = process.env.GROUP_ID || "-1004413191032";
 const FINAL_PORT = process.env.PORT || 10000;
 
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
-console.log("🚀 Advanced Step-by-Step TopUp Bot Initialized...");
+console.log("🚀 Custom Raw Command Bot Initialized...");
 
 // Render পোর্ট ফিক্স এক্সপ্রেস সার্ভার
 const app = express();
 app.get("/", (req, res) => res.send("Bot is Active..."));
 app.listen(FINAL_PORT, "0.0.0.0");
 
-// ইউজারের কারেন্ট স্টেট বা ধাপ ট্র্যাক করার জন্য অবজেক্ট
+// ইউজারের সেশন ট্র্যাক অবজেক্ট
 const userSessions = {};
 
 // মেইন কিবোর্ড বাটনসমূহ
@@ -32,7 +32,7 @@ const mainKeyboard = {
     }
 };
 
-// ক্যানসেল বাটন (স্টেপের সময় নিচে দেখানোর জন্য)
+// ক্যানসেল বাটন
 const cancelKeyboard = {
     reply_markup: {
         keyboard: [[{ text: "❌ Cancel Order" }]],
@@ -49,7 +49,6 @@ bot.on("message", async (msg) => {
     if (!msg.text) return;
 
     const text = msg.text.trim();
-    const userTag = msg.from.username ? `@${msg.from.username}` : msg.from.first_name;
 
     // গ্লোবাল ক্যানসেল চেক
     if (text === "❌ Cancel Order") {
@@ -87,26 +86,25 @@ bot.on("message", async (msg) => {
 
         // ধাপ ৩: কোয়ান্টিটি বা সংখ্যা গ্রহণ করা
         if (session.step === "AWAITING_QTY") {
-            if (text === "⏭️ Skip (1x)") {
-                session.qty = 1;
-            } else {
+            let finalQty = "";
+            if (text !== "⏭️ Skip (1x)") {
                 const qty = parseInt(text);
                 if (isNaN(qty) || qty < 1 || qty > 5) {
-                    return bot.sendMessage(chatId, "⚠️ একসাথে সর্বনিম্ন ১টি এবং সর্বোচ্চ ৫টি টপ-আপ করা যাবে। দয়া করে ১ থেকে ৫ এর মধ্যে সংখ্যা লিখুন:");
+                    return bot.sendMessage(chatId, "⚠️ দয়া করে ১ থেকে ৫ এর মধ্যে সংখ্যা লিখুন বা Skip করুন:");
                 }
-                session.qty = qty;
+                finalQty = ` ${qty}`; // একের বেশি হলে স্পেস দিয়ে সংখ্যা বসবে
             }
 
-            // ফাইনাল ডাটা ভেরিফিকেশন ও গ্রুপে পাঠানো
-            const finalCommand = `Atp ${session.uid} ${session.package} ${session.qty === 1 ? "" : session.qty}`.trim();
+            // হুবহু আপনার চাওয়া ফরমেটে ক্লিন টেক্সট জেনারেট (Atp uid package qty)
+            const finalCommand = `Atp ${session.uid} ${session.package}${finalQty}`.trim();
             
-            // ইউজারকে মেসেজ
-            bot.sendMessage(chatId, `✅ *আপনার অর্ডারটি সফলভাবে গ্রুপে পাঠানো হয়েছে!*\n\n📝 *কমান্ড ফরম্যাট:* \`${finalCommand}\``, { parse_mode: "Markdown", ...mainKeyboard });
+            // ইউজারকে সাকসেস মেসেজ দেওয়া
+            bot.sendMessage(chatId, `✅ *আপনার অর্ডারটি সফলভাবে গ্রুপে পাঠানো হয়েছে!*\n\n📝 \`${finalCommand}\``, { parse_mode: "Markdown", ...mainKeyboard });
 
-            // অ্যাডমিন গ্রুপে ফরওয়ার্ড
-            bot.sendMessage(GROUP_ID, `⚡ *[NEW AUTO TOP-UP ORDER]*\n━━━━━━━━━━━━━━━━━━━━━━\n▢ *User:* ${userTag} (\`${msg.from.id}\`)\n▢ *Generated Command:*\n\`${finalCommand}\`\n━━━━━━━━━━━━━━━━━━━━━━\n▢ *UID:* \`${session.uid}\`\n▢ *Package:* \`${session.package}\`\n▢ *Qty:* ${session.qty}x`, { parse_mode: "Markdown" });
+            // গ্রুপে একদম প্লেইন টেক্সট আকারে পাঠানো (কোনো ডেকোরেশন বা এক্সট্রা লেখা ছাড়া)
+            bot.sendMessage(GROUP_ID, finalCommand);
 
-            // সেশন ডিলিট বা ক্লিয়ার করা
+            // সেশন ক্লিয়ার
             delete userSessions[chatId];
             return;
         }
@@ -116,7 +114,7 @@ bot.on("message", async (msg) => {
     // মেইন বাটন ক্লিক ও জেনারেল কমান্ডস
     // ------------------------------------------
     if (text === "⚡ Auto TopUp") {
-        userSessions[chatId] = { step: "AWAITING_UID", uid: "", package: "", qty: 1 };
+        userSessions[chatId] = { step: "AWAITING_UID", uid: "", package: "" };
         return bot.sendMessage(chatId, "🎮 আপনার *Auto Top-Up* প্রসেসটি শুরু হয়েছে।\n\n🎯 প্রথমে আপনার **Player UID** টি লিখুন:", { parse_mode: "Markdown", ...cancelKeyboard });
     }
 
@@ -149,7 +147,7 @@ bot.on("callback_query", async (query) => {
     const data = query.data;
 
     if (!userSessions[chatId] || userSessions[chatId].step !== "AWAITING_PACKAGE") {
-        return bot.answerCallbackQuery(query.id, { text: "অর্ডারের সেশনটি শেষ হয়ে গেছে। আবার শুরু করুন।" });
+        return bot.answerCallbackQuery(query.id, { text: "সেশনটি শেষ হয়ে গেছে।" });
     }
 
     // ১. Unipin ডায়মন্ড সাব-মেনু
@@ -181,8 +179,8 @@ bot.on("callback_query", async (query) => {
             parse_mode: "Markdown",
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: "Weekly Membership (weekly / 161)", callback_data: "pkg_161" }],
-                    [{ text: "Monthly Membership (monthly / 800)", callback_data: "pkg_800" }],
+                    [{ text: "Weekly Membership (161)", callback_data: "pkg_161" }],
+                    [{ text: "Monthly Membership (800)", callback_data: "pkg_800" }],
                     [{ text: "⬅️ Back", callback_data: "back_to_cat" }]
                 ]
             }
@@ -264,17 +262,16 @@ bot.on("callback_query", async (query) => {
     }
 
     // ------------------------------------------
-    // প্যাকেজ সিলেকশন কনফার্মেশন ও কোয়ান্টিটি চাওয়া
+    // প্যাকেজ সিলেক্ট হয়ে গেলে কোয়ান্টিটি চাওয়া
     // ------------------------------------------
     if (data.startsWith("pkg_")) {
-        const selectedPackage = data.replace("pkg_", ""); // উদাহরণ: 'lite', '20', 'weekly'
+        const selectedPackage = data.replace("pkg_", "");
         userSessions[chatId].package = selectedPackage;
         userSessions[chatId].step = "AWAITING_QTY";
 
         bot.answerCallbackQuery(query.id);
-        bot.deleteMessage(chatId, query.message.message_id); // ইনলাইন বাটন মেসেজটি মুছে দেওয়া
+        bot.deleteMessage(chatId, query.message.message_id);
 
-        // কোয়ান্টিটি চাওয়ার জন্য কাস্টম বাটন (যাতে সরাসরি ১টির জন্য স্কিপ করতে পারে)
         return bot.sendMessage(chatId, `📦 আপনি সিলেক্ট করেছেন: *${selectedPackage}*\n\n🔢 এবার আপনি কতটি (Quantity) নিতে চান তা টেক্সট আকারে লিখে পাঠান।\n\n💡 ১টি নিতে চাইলে নিচের **⏭️ Skip (1x)** বাটনে চাপ দিতে পারেন।`, {
             parse_mode: "Markdown",
             reply_markup: {
@@ -288,4 +285,4 @@ bot.on("callback_query", async (query) => {
         });
     }
 });
-                                                                    
+            
